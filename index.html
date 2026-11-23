@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>VocalLab AV - Análisis Vocal</title><style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:monospace}
+body{background:#090514;color:#f3e8ff;display:flex;justify-content:center;padding:12px}
+.box{width:100%;max-width:440px;background:#130b24;border:2px solid #a855f7;border-radius:14px;padding:14px}
+h1{font-size:14px;color:#d8b4fe;text-align:center;margin-bottom:8px}
+canvas{width:100%;height:145px;background:#05020a;border:1px solid #7e22ce;border-radius:8px;margin-bottom:8px}
+.nota{text-align:center;font-size:24px;font-weight:bold;color:#00ffcc;background:#0a0614;padding:8px;border-radius:8px;margin-bottom:8px;border:1px solid #3b0764}
+.piano{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+button{background:#6b21a8;color:#fff;border:none;border-radius:6px;padding:10px 5px;font-size:11px;font-weight:bold}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.b-mic{background:#db2777}.b-rec{background:#0284c7}.b-echo{background:#059669}.b-stop{background:#475569}
+input[type=range]{width:100%;height:26px;margin-bottom:8px}
+</style></head><body><div class="box">
+<h1>VOCALLAB AV | ANÁLISIS ACÚSTICO VOCAL</h1>
+<div class="nota" id="notaBox">NOTA: -- | 0 Hz</div>
+<canvas id="cv" width="400" height="145"></canvas>
+<div class="piano" id="piano"></div>
+<div class="grid">
+<button class="b-mic" id="bMic">🎙 ANALIZAR VOZ</button>
+<button class="b-echo" id="bEcho">🎛 ECO ESTUDIO: OFF</button>
+<button class="b-rec" id="bRec">● GRABAR TOMA</button>
+<button class="b-stop" id="bStop">⏹ PARAR TONO</button>
+</div>
+<input type="range" id="rGain" min="1" max="8" step="0.5" value="1.5">
+<div id="player"></div></div>
+<script>
+var ctx=new(window.AudioContext||window.webkitAudioContext)(),osc=null,micOn=false,echoOn=false,stream=null,rec=null,chunks=[];
+var an=ctx.createAnalyser();an.fftSize=2048;var dest=ctx.createMediaStreamDestination();
+var notas=[["DO4",261.63],["RE4",293.66],["MI4",329.63],["FA4",349.23],["SOL4",392],["LA4",440],["SI4",493.88],["DO5",523.25]];
+var nombres=["DO","DO#","RE","RE#","MI","FA","FA#","SOL","SOL#","LA","LA#","SI"];
+notas.forEach(n=>{var b=document.createElement("button");b.textContent=n+" ("+Math.round(n)+"Hz)";b.onclick=()=>{if(ctx.state==="suspended")ctx.resume();if(osc)try{osc.stop();}catch(e){}osc=ctx.createOscillator();var g=ctx.createGain();g.gain.value=0.15;osc.frequency.value=n;osc.connect(g);g.connect(ctx.destination);osc.start();};document.getElementById("piano").appendChild(b);});
+document.getElementById("bStop").onclick=()=>{if(osc)try{osc.stop();}catch(e){}osc=null;};
+var gainNode=ctx.createGain();gainNode.gain.value=1.5;var delay=ctx.createDelay();delay.delayTime.value=0.28;var fb=ctx.createGain();fb.gain.value=0;delay.connect(fb);fb.connect(delay);
+document.getElementById("rGain").oninput=function(){gainNode.gain.value=parseFloat(this.value);};
+document.getElementById("bEcho").onclick=function(){echoOn=!echoOn;fb.gain.value=echoOn?0.35:0;this.textContent="🎛 ECO ESTUDIO: "+(echoOn?"ON":"OFF");};
+document.getElementById("bMic").onclick=async function(){
+if(ctx.state==="suspended")ctx.resume();
+if(micOn){stream.getTracks().forEach(t=>t.stop());micOn=false;this.textContent="🎙 ANALIZAR VOZ";return;}
+stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true}});
+var src=ctx.createMediaStreamSource(stream);src.connect(gainNode);gainNode.connect(an);gainNode.connect(dest);gainNode.connect(delay);delay.connect(dest);
+micOn=true;this.textContent="⏹ PARAR VOZ";};
+document.getElementById("bRec").onclick=function(){
+if(!micOn)return alert("Enciende primero ANALIZAR VOZ");
+if(rec&&rec.state==="recording"){rec.stop();this.textContent="● GRABAR TOMA";return;}
+chunks=[];var m=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":"audio/webm";
+rec=new MediaRecorder(dest.stream,{mimeType:m});rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+rec.onstop=()=>{document.getElementById("player").innerHTML='<audio controls playsinline src="'+URL.createObjectURL(new Blob(chunks,{type:m}))+'" style="width:100%;margin-top:8px"></audio>';};
+rec.start();this.textContent="■ DETENER TOMA";};
+function pitch(buf,sr){var sz=buf.length,rms=0;for(var i=0;i<sz;i++)rms+=buf[i]*buf[i];if(Math.sqrt(rms/sz)<0.015)return -1;var c=new Array(sz).fill(0);for(var i=0;i<sz;i++)for(var j=0;j<sz-i;j++)c[i]+=buf[j]*buf[j+i];var d=0;while(c[d]>c[d+1])d++;var mv=-1,mp=-1;for(var i=d;i<sz;i++)if(c[i]>mv){mv=c[i];mp=i;}return sr/mp;}
+var cv=document.getElementById("cv"),c2=cv.getContext("2d");
+(function loop(){requestAnimationFrame(loop);c2.fillStyle="rgba(5,2,10,0.35)";c2.fillRect(0,0,400,145);
+if(micOn){var fbuf=new Float32Array(an.fftSize);an.getFloatTimeDomainData(fbuf);var f=pitch(fbuf,ctx.sampleRate);
+if(f>70&&f<1100){var n=Math.round(12*(Math.log(f/440)/Math.log(2)))+69;document.getElementById("notaBox").textContent="NOTA: "+nombres[n%12]+(Math.floor(n/12)-1)+" | "+Math.round(f)+" Hz";}
+var fd=new Uint8Array(an.frequencyBinCount);an.getByteFrequencyData(fd);
+for(var i=0;i<64;i++){var h=(fd[i]/255)*130;c2.fillStyle=i<12?"#c084fc":(i<35?"#00ffcc":"#38bdf8");c2.fillRect(i*6.2,145-h,4.5,h);}}})();
+</script></body></html>
