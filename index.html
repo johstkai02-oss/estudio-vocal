@@ -31,7 +31,7 @@ var ctx=new(window.AudioContext||window.webkitAudioContext)(),osc=null,micOn=fal
 var an=ctx.createAnalyser();an.fftSize=2048;var dest=ctx.createMediaStreamDestination();
 var notas=[["DO4",261.63],["RE4",293.66],["MI4",329.63],["FA4",349.23],["SOL4",392],["LA4",440],["SI4",493.88],["DO5",523.25]];
 var nombres=["DO","DO#","RE","RE#","MI","FA","FA#","SOL","SOL#","LA","LA#","SI"];
-notas.forEach(n=>{var b=document.createElement("button");b.textContent=n+" ("+Math.round(n)+"Hz)";b.onclick=()=>{if(ctx.state==="suspended")ctx.resume();if(osc)try{osc.stop();}catch(e){}osc=ctx.createOscillator();var g=ctx.createGain();g.gain.value=0.15;osc.frequency.value=n;osc.connect(g);g.connect(ctx.destination);osc.start();};document.getElementById("piano").appendChild(b);});
+notas.forEach(n=>{var b=document.createElement("button");b.textContent=n[0]+" ("+Math.round(n[1])+"Hz)";b.onclick=()=>{if(ctx.state==="suspended")ctx.resume();if(osc)try{osc.stop();}catch(e){}osc=ctx.createOscillator();var g=ctx.createGain();g.gain.value=0.15;osc.frequency.value=n[1];osc.connect(g);g.connect(ctx.destination);osc.start();};document.getElementById("piano").appendChild(b);});
 document.getElementById("bStop").onclick=()=>{if(osc)try{osc.stop();}catch(e){}osc=null;};
 var gainNode=ctx.createGain();gainNode.gain.value=1.5;var delay=ctx.createDelay();delay.delayTime.value=0.28;var fb=ctx.createGain();fb.gain.value=0;delay.connect(fb);fb.connect(delay);
 document.getElementById("rGain").oninput=function(){gainNode.gain.value=parseFloat(this.value);};
